@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Glub AI</title>
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--deep:#020c18;--ocean:#041e36;--mid:#063558;--cyan:#06b6d4;--foam:#a5f3fc}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    body{background:var(--deep);font-family:'Nunito',sans-serif;min-height:100vh;overflow:hidden;color:white}
+    .screen{position:fixed;inset:0;display:flex;flex-direction:column;transition:transform 0.3s ease;background:var(--deep);overflow:hidden}
+    #chatsScreen{transform:translateX(0);z-index:1}
+    #chatScreen{transform:translateX(100%);z-index:2}
+    #settingsScreen{transform:translateX(100%);z-index:3}
+    body.in-chat #chatsScreen{transform:translateX(-40%)}
+    body.in-chat #chatScreen{transform:translateX(0)}
+    body.in-settings #settingsScreen{transform:translateX(0)}
+    .ocean-bg{position:fixed;inset:0;z-index:0;background:linear-gradient(180deg,#020c18 0%,#041e36 40%,#063558 100%);pointer-events:none;overflow:hidden}
+    .bg-bubble{position:absolute;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(6,182,212,0.2),rgba(6,182,212,0.02));border:1px solid rgba(6,182,212,0.12);animation:floatUp linear infinite}
+    @keyframes floatUp{0%{transform:translateY(100vh) scale(0.5);opacity:0}10%{opacity:1}90%{opacity:0.4}100%{transform:translateY(-100px) scale(1.2);opacity:0}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+    @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .profile-avatar{width:36px;height:36px;border-radius:50%;border:2px solid var(--cyan);background:var(--mid);display:flex;align-items:center;justify-content:center;font-size:16px;overflow:hidden;cursor:pointer;box-shadow:0 0 10px rgba(6,182,212,0.3);flex-shrink:0}
+    .profile-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+    .profile-avatar.sm{width:30px;height:30px;font-size:13px}
+    /* CHATS */
+    .chats-header{padding:52px 20px 16px;position:relative;z-index:1}
+    .chats-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .chats-title{font-family:'Fredoka One',cursive;font-size:32px;color:white}
+    .search-bar{background:rgba(6,55,88,0.6);border:1px solid rgba(6,182,212,0.15);border-radius:14px;padding:11px 16px;display:flex;align-items:center;gap:10px}
+    .search-bar input{background:transparent;border:none;outline:none;color:white;font-size:15px;font-family:'Nunito',sans-serif;flex:1}
+    .search-bar input::placeholder{color:rgba(165,243,252,0.3)}
+    .chats-list{flex:1;overflow-y:auto;padding:4px 0;position:relative;z-index:1}
+    .chat-item{padding:14px 20px;cursor:pointer;border-bottom:1px solid rgba(6,182,212,0.06);display:flex;align-items:center;gap:14px}
+    .chat-item:active{background:rgba(6,182,212,0.08)}
+    .chat-item-icon{width:44px;height:44px;background:linear-gradient(135deg,#041e36,#063558);border:1px solid rgba(6,182,212,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+    .chat-item-title{font-weight:700;font-size:15px;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+    .chat-item-time{font-size:12px;color:rgba(165,243,252,0.35)}
+    .empty-chats{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 30px;text-align:center}
+    .empty-fish{font-size:52px;margin-bottom:14px;animation:pulse 2s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(6,182,212,0.5))}
+    .empty-title{font-family:'Fredoka One',cursive;font-size:22px;color:var(--cyan);margin-bottom:8px}
+    .empty-sub{font-size:13px;color:rgba(165,243,252,0.4);line-height:1.6}
+    .fab{position:fixed;bottom:28px;right:22px;z-index:50;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;border-radius:28px;padding:14px 22px;color:white;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 6px 24px rgba(6,182,212,0.4)}
+    /* CHAT */
+    .chat-header{position:relative;z-index:10;padding:12px 14px;display:flex;align-items:center;gap:10px;background:rgba(2,12,24,0.92);backdrop-filter:blur(12px);border-bottom:1px solid rgba(6,182,212,0.12);flex-shrink:0}
+    .back-btn{width:35px;height:35px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--cyan);font-size:20px;flex-shrink:0}
+    .glub-icon{width:34px;height:34px;background:linear-gradient(135deg,#0891b2,#06b6d4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;animation:pulse 3s ease-in-out infinite;box-shadow:0 0 14px rgba(6,182,212,0.4);flex-shrink:0}
+    .chat-header-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--cyan)}
+    .chat-header-sub{font-size:10px;color:rgba(165,243,252,0.4);margin-top:1px}
+    .messages{flex:1;overflow-y:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+    .scroll-anchor{height:4px}
+    .welcome{display:flex;flex-direction:column;align-items:center;padding:20px 16px 12px;animation:fadeUp 0.5s ease;text-align:center}
+    .welcome-fish{font-size:48px;margin-bottom:10px;animation:pulse 2s ease-in-out infinite;filter:drop-shadow(0 0 14px rgba(6,182,212,0.6))}
+    .welcome-title{font-family:'Fredoka One',cursive;font-size:22px;color:var(--cyan);margin-bottom:6px}
+    .welcome-sub{font-size:12px;color:rgba(165,243,252,0.5);line-height:1.6;max-width:260px;margin-bottom:16px}
+    .suggestions{width:100%;display:flex;flex-direction:column;gap:6px}
+    .suggestion{background:rgba(6,182,212,0.07);border:1px solid rgba(6,182,212,0.14);border-radius:12px;padding:10px 14px;color:rgba(165,243,252,0.65);font-size:13px;font-family:'Nunito',sans-serif;text-align:left;cursor:pointer}
+    .msg-row{display:flex;animation:fadeUp 0.2s ease}
+    .msg-row.user{justify-content:flex-end}
+    .msg-row.ai{justify-content:flex-start;align-items:flex-start;gap:8px}
+    .ai-av{width:27px;height:27px;background:linear-gradient(135deg,#0891b2,#06b6d4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px}
+    .msg-wrap{display:flex;flex-direction:column;max-width:78%}
+    .bubble{padding:10px 14px;font-size:14px;line-height:1.65}
+    .msg-row.user .bubble{background:linear-gradient(135deg,#0891b2,#0e7490);border-radius:18px 18px 4px 18px;color:white;font-weight:600}
+    .msg-row.ai .bubble{background:rgba(6,55,88,0.85);border:1px solid rgba(6,182,212,0.18);border-radius:18px 18px 18px 4px;color:var(--foam)}
+    .msg-source{font-size:10px;color:rgba(6,182,212,0.4);margin-top:4px;padding-left:2px}
+    .typing-dots{background:rgba(6,55,88,0.85);border:1px solid rgba(6,182,212,0.18);border-radius:18px 18px 18px 4px;padding:12px 16px;display:flex;gap:5px;align-items:center}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--cyan);animation:bounce 1.2s infinite}
+    /* upgrade card */
+    .upgrade-card{background:rgba(6,55,88,0.9);border:1px solid rgba(6,182,212,0.35);border-radius:16px;padding:14px 16px;margin:4px 0;animation:fadeUp 0.3s ease}
+    .upgrade-title{font-family:'Fredoka One',cursive;font-size:15px;color:var(--cyan);margin-bottom:6px}
+    .upgrade-desc{font-size:13px;color:var(--foam);line-height:1.5;margin-bottom:10px}
+    .upgrade-btns{display:flex;gap:8px}
+    .upgrade-yes{flex:2;padding:9px;border-radius:10px;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;color:white;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer}
+    .upgrade-no{flex:1;padding:9px;border-radius:10px;background:transparent;border:1px solid rgba(6,182,212,0.2);color:rgba(165,243,252,0.5);font-family:'Nunito',sans-serif;font-size:13px;cursor:pointer}
+    /* generated image */
+    .gen-image{max-width:100%;border-radius:12px;margin-top:6px;border:1px solid rgba(6,182,212,0.2)}
+    /* input */
+    .input-area{position:relative;z-index:10;padding:8px 12px 20px;background:rgba(2,12,24,0.92);backdrop-filter:blur(12px);border-top:1px solid rgba(6,182,212,0.1);flex-shrink:0}
+    .status-bar{font-size:11px;color:rgba(6,182,212,0.45);text-align:center;min-height:18px;padding:2px 0 5px;font-style:italic}
+    .file-preview{display:none;align-items:center;gap:8px;padding:5px 10px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:9px;margin-bottom:7px;font-size:12px;color:var(--foam)}
+    .file-preview.show{display:flex}
+    .file-remove{color:#f87171;cursor:pointer;font-weight:bold;margin-left:auto}
+    .input-row{display:flex;gap:7px;align-items:flex-end;background:rgba(6,55,88,0.5);border:1px solid rgba(6,182,212,0.22);border-radius:18px;padding:7px}
+    .input-row:focus-within{border-color:rgba(6,182,212,0.45)}
+    .icon-btn{width:35px;height:35px;border-radius:10px;border:none;background:rgba(6,182,212,0.12);color:var(--cyan);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .icon-btn:active{background:rgba(6,182,212,0.25)}
+    textarea{flex:1;background:transparent;border:none;outline:none;color:var(--foam);font-size:14px;font-family:'Nunito',sans-serif;font-weight:600;line-height:1.5;resize:none;min-height:22px;max-height:110px;padding:6px 4px}
+    textarea::placeholder{color:rgba(165,243,252,0.28)}
+    .send-btn{width:35px;height:35px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;background:linear-gradient(135deg,#0891b2,#06b6d4);color:white}
+    .send-btn:disabled{background:rgba(6,55,88,0.5);color:rgba(165,243,252,0.2);cursor:default}
+    /* SETTINGS */
+    .settings-header{padding:52px 20px 16px;display:flex;align-items:center;gap:14px;position:relative;z-index:1;flex-shrink:0}
+    .settings-title{font-family:'Fredoka One',cursive;font-size:28px;color:white;flex:1}
+    .settings-scroll{flex:1;overflow-y:auto;padding:0 16px 100px;position:relative;z-index:1}
+    .section-label{font-size:11px;font-weight:800;color:rgba(6,182,212,0.5);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px;padding:0 4px}
+    .settings-card{background:rgba(6,55,88,0.4);border:1px solid rgba(6,182,212,0.15);border-radius:16px;overflow:hidden;margin-bottom:8px}
+    .settings-row{padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(6,182,212,0.08)}
+    .settings-row:last-child{border-bottom:none}
+    .settings-row-label{font-weight:700;font-size:14px;color:var(--foam)}
+    .settings-row-sub{font-size:11px;color:rgba(165,243,252,0.4);margin-top:2px}
+    .settings-input{width:100%;background:rgba(2,12,24,0.4);border:1px solid rgba(6,182,212,0.15);border-radius:8px;padding:8px 12px;color:var(--foam);font-size:14px;font-family:'Nunito',sans-serif;font-weight:600;margin-top:6px;outline:none}
+    .settings-input::placeholder{color:rgba(165,243,252,0.25)}
+    .settings-textarea{width:100%;background:rgba(2,12,24,0.4);border:1px solid rgba(6,182,212,0.15);border-radius:8px;padding:8px 12px;color:var(--foam);font-size:13px;font-family:'Nunito',sans-serif;resize:none;outline:none;margin-top:6px;line-height:1.5}
+    .save-btn{width:100%;padding:13px;border-radius:14px;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;color:white;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;margin-top:16px;box-shadow:0 4px 16px rgba(6,182,212,0.3)}
+    .api-card{background:rgba(6,55,88,0.4);border:1px solid rgba(6,182,212,0.15);border-radius:14px;padding:14px;margin-bottom:10px;position:relative}
+    .api-card-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .api-card-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:rgba(6,182,212,0.12)}
+    .api-card-name{font-weight:800;font-size:14px;color:var(--foam)}
+    .api-card-desc{font-size:11px;color:rgba(165,243,252,0.4);margin-top:1px}
+    .api-card-remove{position:absolute;top:12px;right:12px;background:rgba(248,113,113,0.15);border:none;color:#f87171;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif}
+    .add-api-btn{width:100%;padding:12px;border-radius:14px;background:rgba(6,182,212,0.08);border:1px dashed rgba(6,182,212,0.3);color:var(--cyan);font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px}
+    /* MODALS */
+    .modal-overlay{position:fixed;inset:0;background:rgba(2,12,24,0.88);backdrop-filter:blur(8px);z-index:400;display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px}
+    .modal{background:#0b1e33;border:1px solid rgba(6,182,212,0.2);border-radius:20px 20px 16px 16px;padding:20px;width:100%;max-width:500px;animation:fadeUp 0.2s ease;max-height:90vh;overflow-y:auto}
+    #modelList{max-height:60vh;overflow-y:auto;padding-bottom:8px}
+    .modal-title{font-family:'Fredoka One',cursive;font-size:18px;color:var(--cyan);margin-bottom:14px}
+    .modal-field-label{font-size:11px;font-weight:800;color:rgba(165,243,252,0.45);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;margin-top:12px}
+    .modal-input{width:100%;background:rgba(6,55,88,0.6);border:1px solid rgba(6,182,212,0.2);border-radius:10px;padding:10px 14px;color:var(--foam);font-size:13px;font-family:'Nunito',sans-serif;outline:none;margin-bottom:4px}
+    .modal-input::placeholder{color:rgba(165,243,252,0.2)}
+    .model-opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;cursor:pointer;margin-bottom:6px;border:1px solid transparent}
+    .model-opt.active{background:rgba(6,182,212,0.1);border-color:rgba(6,182,212,0.28)}
+    .m-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+    .m-name{font-weight:800;font-size:14px;color:var(--foam)}
+    .m-desc{font-size:11px;color:rgba(165,243,252,0.4);margin-top:1px}
+    .m-check{margin-left:auto;color:var(--cyan);font-size:18px}
+    .modal-close{width:100%;padding:11px;border-radius:12px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);color:var(--cyan);font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
+    .modal-save{width:100%;padding:11px;border-radius:12px;background:linear-gradient(135deg,#0891b2,#06b6d4);border:none;color:white;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;margin-top:6px}
+    .toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(6,182,212,0.92);color:white;padding:10px 24px;border-radius:20px;font-size:13px;font-weight:700;z-index:999;opacity:0;transition:opacity 0.3s;pointer-events:none}
+    .toast.show{opacity:1}
+    ::-webkit-scrollbar{width:3px}
+    ::-webkit-scrollbar-thumb{background:rgba(6,182,212,0.2);border-radius:3px}
+  </style>
+</head>
+<body>
+<div class="ocean-bg" id="oceanBg"></div>
+<div class="toast" id="toast"></div>
+
+<!-- CHATS SCREEN -->
+<div class="screen" id="chatsScreen">
+  <div class="chats-header">
+    <div class="chats-header-row">
+      <div class="chats-title">Chats</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button onclick="openSettings()" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:10px;width:36px;height:36px;color:var(--cyan);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center">⚙️</button>
+        <div class="profile-avatar" id="profileAvatar">👤</div>
+      </div>
+    </div>
+    <div class="search-bar">
+      <span style="color:rgba(165,243,252,0.35)">🔍</span>
+      <input type="text" placeholder="Search Chats" id="searchInput" oninput="filterChats(this.value)">
+    </div>
+  </div>
+  <div class="chats-list" id="chatsList"></div>
+  <button class="fab" onclick="newChat()"><span style="font-size:20px">＋</span> New chat</button>
+</div>
+
+<!-- CHAT SCREEN -->
+<div class="screen" id="chatScreen">
+  <div class="chat-header">
+    <div class="back-btn" onclick="goBack()">‹</div>
+    <div class="glub-icon">🐟</div>
+    <div style="flex:1;min-width:0">
+      <div class="chat-header-title">Glub</div>
+      <div class="chat-header-sub" id="modelLabel">via GPT-4o Mini</div>
+    </div>
+    <div class="profile-avatar sm" id="profileAvatar2">👤</div>
+  </div>
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-fish">🐠</div>
+      <div class="welcome-title">Hey! I'm Glub 👋</div>
+      <div class="welcome-sub">I search the web, generate images, speak, and can even upgrade myself. Just ask!</div>
+      <div class="suggestions">
+        <button class="suggestion" onclick="ask('What is happening in the world right now?')">🌍 What's happening in the world?</button>
+        <button class="suggestion" onclick="ask('Generate an image of a futuristic underwater city')">🎨 Generate an image</button>
+        <button class="suggestion" onclick="ask('Help me write and explain some code')">💻 Help me code something</button>
+        <button class="suggestion" onclick="ask('Solve this step by step: what is 15% of 847?')">🧮 Solve a math problem</button>
+      </div>
+    </div>
+    <div class="scroll-anchor" id="bottom"></div>
+  </div>
+  <div class="input-area">
+    <div class="status-bar" id="statusBar"></div>
+    <div id="filePreview" class="file-preview">
+      <span>📎</span><span id="fileName"></span>
+      <span class="file-remove" onclick="clearFile()">✕</span>
+    </div>
+    <div class="input-row">
+      <button class="icon-btn" onclick="triggerFile()">＋</button>
+      <button class="icon-btn" onclick="openModelPicker()">⚙️</button>
+      <textarea id="userInput" placeholder="Ask Glub anything..." rows="1"
+        oninput="autoResize(this);document.getElementById('sendBtn').disabled=!this.value.trim()"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS SCREEN -->
+<div class="screen" id="settingsScreen">
+  <div class="settings-header">
+    <div class="back-btn" onclick="closeSettings()">‹</div>
+    <div class="settings-title">Settings</div>
+    <div class="profile-avatar" id="profileAvatar3">👤</div>
+  </div>
+  <div class="settings-scroll">
+    <div class="section-label">🔑 API Keys</div>
+    <div class="settings-card">
+      <div class="settings-row" style="flex-direction:column;align-items:flex-start">
+        <div class="settings-row-label">Claude API Key</div>
+        <div class="settings-row-sub">Required for self-improvement & deep thinking</div>
+        <input class="settings-input" id="claudeKeyInput" type="password" placeholder="sk-ant-...">
+      </div>
+    </div>
+    <div class="section-label">👤 Your Personality</div>
+    <div class="settings-card">
+      <div class="settings-row" style="flex-direction:column;align-items:flex-start">
+        <div class="settings-row-label">Your Name</div>
+        <input class="settings-input" id="pName" placeholder="What should Glub call you?">
+      </div>
+      <div class="settings-row" style="flex-direction:column;align-items:flex-start">
+        <div class="settings-row-label">Your Interests</div>
+        <input class="settings-input" id="pInterests" placeholder="e.g. coding, gaming, music...">
+      </div>
+      <div class="settings-row" style="flex-direction:column;align-items:flex-start">
+        <div class="settings-row-label">How you like to talk</div>
+        <input class="settings-input" id="pTone" placeholder="e.g. casual, short answers, uses slang...">
+      </div>
+      <div class="settings-row" style="flex-direction:column;align-items:flex-start">
+        <div class="settings-row-label">Anything else Glub should know</div>
+        <textarea class="settings-textarea" id="pExtra" rows="3" placeholder="e.g. I'm a student, I code in Python, I live in India..."></textarea>
+      </div>
+    </div>
+    <div class="section-label">🔌 Connected APIs</div>
+    <div id="apiCards"></div>
+    <button class="add-api-btn" onclick="openAddApi()">＋ Add API</button>
+    <div class="section-label">🤖 Default Model</div>
+    <div class="settings-card" id="modelCards"></div>
+    <button class="save-btn" onclick="saveSettings()">Save Everything 🐠</button>
+  </div>
+</div>
+
+<!-- Model modal -->
+<div class="modal-overlay" id="modelModal" style="display:none" onclick="if(event.target===this)closeModelPicker()">
+  <div class="modal" style="display:flex;flex-direction:column;max-height:80vh;padding-bottom:0">
+    <div class="modal-title" style="flex-shrink:0">⚙️ Choose Model</div>
+    <div id="modelList" style="overflow-y:auto;flex:1;padding-bottom:8px"></div>
+    <div style="flex-shrink:0;padding:10px 0 14px">
+      <button class="modal-close" onclick="closeModelPicker()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add API modal -->
+<div class="modal-overlay" id="apiModal" style="display:none" onclick="if(event.target===this)closeAddApi()">
+  <div class="modal">
+    <div class="modal-title">🔌 Add API</div>
+    <div class="modal-field-label">API Name</div>
+    <input class="modal-input" id="apiName" placeholder="e.g. GitHub, OpenWeather, Spotify...">
+    <div class="modal-field-label">Base URL</div>
+    <input class="modal-input" id="apiUrl" placeholder="e.g. https://api.github.com">
+    <div class="modal-field-label">API Key / Token</div>
+    <input class="modal-input" id="apiKey" type="password" placeholder="Your secret key or token">
+    <div class="modal-field-label">What can Glub do with this?</div>
+    <input class="modal-input" id="apiDesc" placeholder="e.g. Read my repos, check issues...">
+    <div class="modal-field-label">Quick Presets</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px">
+      <button onclick="fillPreset('github')" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:8px;padding:6px 12px;color:var(--foam);font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif">🐙 GitHub</button>
+      <button onclick="fillPreset('weather')" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:8px;padding:6px 12px;color:var(--foam);font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif">🌤 Weather</button>
+      <button onclick="fillPreset('spotify')" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:8px;padding:6px 12px;color:var(--foam);font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif">🎵 Spotify</button>
+      <button onclick="fillPreset('notion')" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:8px;padding:6px 12px;color:var(--foam);font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif">📝 Notion</button>
+      <button onclick="fillPreset('supabase')" style="background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.2);border-radius:8px;padding:6px 12px;color:var(--foam);font-size:12px;cursor:pointer;font-family:'Nunito',sans-serif">🗄 Supabase</button>
+    </div>
+    <button class="modal-save" onclick="saveApi()">Add API 🔌</button>
+    <button class="modal-close" onclick="closeAddApi()">Cancel</button>
+  </div>
+</div>
+
+<input type="file" id="fileInput" style="display:none" accept="image/*,.pdf,.txt,.js,.py,.html,.css,.json,.csv" onchange="handleFile(this)">
+
+<script>
+const SUPABASE_URL='https://idkrlwabewpmmghuyupe.supabase.co';
+const SUPABASE_KEY='sb_publishable_9tE2OplfnU78zpQUSMRVNw_K7uOJFYw';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+// All models including new Puter ones
+
+const MODELS=[
+  // Text
+  {id:'openai/gpt-4o-mini', name:'GPT-4o Mini', desc:'Fast & free — everyday use', icon:'⚡',bg:'#0f2a0f',cat:'Text'},
+  {id:'openai/gpt-4o', name:'GPT-4o', desc:'Smarter — vision & complex tasks', icon:'🧠',bg:'#0f0f2a',cat:'Text'},
+  {id:'openai/gpt-5', name:'GPT-5', desc:'Most powerful OpenAI model', icon:'🚀',bg:'#0f0f2a',cat:'Text'},
+
+  {id:'anthropic/claude-sonnet-4.5', name:'Claude Sonnet 4.5', desc:'Creative writing & dialogue', icon:'🎯',bg:'#2a0f2a',cat:'Text'},
+  {id:'anthropic/claude-opus-4.5', name:'Claude Opus 4.5', desc:'Deep reasoning', icon:'👑',bg:'#2a0f2a',cat:'Text'},
+
+  {id:'google/gemini-2.5-flash', name:'Gemini 2.5 Flash', desc:'Google fast model', icon:'✦',bg:'#0a1f2a',cat:'Text'},
+  {id:'google/gemini-2.5-pro', name:'Gemini 2.5 Pro', desc:'Large context', icon:'💎',bg:'#0a1f2a',cat:'Text'},
+
+  {id:'meta-llama/llama-4-maverick', name:'Llama 4 Maverick', desc:'Meta open model', icon:'🦙',bg:'#1a0a0a',cat:'Text'},
+  {id:'deepseek/deepseek-r1', name:'DeepSeek R1', desc:'Reasoning model', icon:'🔍',bg:'#0a0f1a',cat:'Text'},
+  {id:'x-ai/grok-3', name:'Grok 3', desc:'xAI model', icon:'🤖',bg:'#0a0a1a',cat:'Text'},
+
+  // Image
+  {id:'openai/dall-e-3', name:'DALL-E 3', desc:'High quality images', icon:'🎨',bg:'#1a1a0a',cat:'Image'},
+  {id:'openai/gpt-image-1', name:'GPT Image 1', desc:'OpenAI image model', icon:'🖼',bg:'#1a1a0a',cat:'Image'},
+  {id:'black-forest-labs/FLUX.1-schnell', name:'FLUX Schnell', desc:'Ultra fast images', icon:'⚡',bg:'#0a1a1a',cat:'Image'},
+  {id:'black-forest-labs/FLUX.1-pro', name:'FLUX Pro', desc:'Professional images', icon:'🌟',bg:'#0a1a1a',cat:'Image'},
+
+  // Video
+  {id:'openai/sora', name:'OpenAI Sora', desc:'Text → video', icon:'🎬',bg:'#1a0f0a',cat:'Video'},
+  {id:'wan/wan-2.1-t2v-720p', name:'Wan 2.1', desc:'720p video model', icon:'📽',bg:'#0f1a0a',cat:'Video'},
+
+  // Voice
+  {id:'puter/tts', name:'Puter TTS', desc:'Text-to-speech', icon:'🔊',bg:'#0a1a0a',cat:'Sound'}
+];
+
+const IMAGE_MODELS=MODELS.filter(m=>m.cat==='Image').map(m=>m.id);
+const TTS_MODELS=MODELS.filter(m=>m.cat==='Sound').map(m=>m.id);
+
+const API_PRESETS={
+  github: {name:'GitHub',url:'https://api.github.com',desc:'Read repos, issues, code, commits'},
+  weather:{name:'OpenWeather',url:'https://api.openweathermap.org/data/2.5',desc:'Get weather forecasts'},
+  spotify:{name:'Spotify',url:'https://api.spotify.com/v1',desc:'Control music, get playlists'},
+  notion: {name:'Notion',url:'https://api.notion.com/v1',desc:'Read and write Notion pages'},
+  supabase:{name:'Supabase',url:'https://your-project.supabase.co',desc:'Query your database'},
+};
+
+// State
+let currentModel=MODELS[0];
+let chatHistory=[];
+let currentChatId=null;
+let allChats=[];
+let selectedFile=null,selectedFileData=null;
+let isLoading=false;
+let puterUser=null;
+let personality={name:'',interests:'',tone:'',extra:''};
+let connectedApis=[];
+let claudeKey='';
+let pendingUpgrade=null; // stores upgrade proposal
+
+// ── INIT ──────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded',async()=>{
+  // Bubbles
+  const bg=document.getElementById('oceanBg');
+  for(let i=0;i<14;i++){const b=document.createElement('div');b.className='bg-bubble';const s=Math.random()*28+8;b.style.cssText=`width:${s}px;height:${s}px;left:${Math.random()*100}%;animation-duration:${Math.random()*12+8}s;animation-delay:${Math.random()*10}s;`;bg.appendChild(b);}
+  // Puter profile
+  try{
+    puterUser=await puter.auth.getUser();
+    if(puterUser){
+      ['profileAvatar','profileAvatar2','profileAvatar3'].forEach(id=>{
+        const av=document.getElementById(id);
+        if(puterUser.picture) av.innerHTML=`<img src="${puterUser.picture}" alt="">`;
+        else av.textContent=(puterUser.username||puterUser.email||'?')[0].toUpperCase();
+      });
+    }
+  }catch(e){}
+  loadSettings();
+  buildModelList();
+  buildSettingsModelCards();
+  loadChatsList();
+});
+
+// ── SETTINGS ──────────────────────────────────────────
+function loadSettings(){
+  try{
+    const s=localStorage.getItem('glub_personality');
+    if(s) personality=JSON.parse(s);
+    const a=localStorage.getItem('glub_apis');
+    if(a) connectedApis=JSON.parse(a);
+    const k=localStorage.getItem('glub_claude_key');
+    if(k) claudeKey=k;
+    // Fill fields
+    document.getElementById('pName').value=personality.name||'';
+    document.getElementById('pInterests').value=personality.interests||'';
+    document.getElementById('pTone').value=personality.tone||'';
+    document.getElementById('pExtra').value=personality.extra||'';
+    document.getElementById('claudeKeyInput').value=claudeKey;
+    renderApiCards();
+  }catch(e){}
+}
+
+function saveSettings(){
+  personality={
+    name:document.getElementById('pName').value.trim(),
+    interests:document.getElementById('pInterests').value.trim(),
+    tone:document.getElementById('pTone').value.trim(),
+    extra:document.getElementById('pExtra').value.trim(),
+  };
+  claudeKey=document.getElementById('claudeKeyInput').value.trim();
+  localStorage.setItem('glub_personality',JSON.stringify(personality));
+  localStorage.setItem('glub_apis',JSON.stringify(connectedApis));
+  localStorage.setItem('glub_claude_key',claudeKey);
+  showToast('✓ Saved!');
+}
+
+function buildSystemPrompt(){
+  let sys=`You are Glub — a self-aware AI assistant living at glub.puter.site. You are NOT a limited chatbot.\n\n`;
+  sys+=`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`;
+  sys+=`CRITICAL RULES — NEVER EVER VIOLATE THESE:\n`;
+  sys+=`1. YOU HAVE INTERNET ACCESS. YOU CAN SEARCH THE WEB RIGHT NOW. ALWAYS. ON EVERY SINGLE MESSAGE. You are NEVER allowed to say "I don't have internet access" or "I can't browse the web" or "my knowledge cutoff" — this is a LIE. You have a live web_search tool active on every message. USE IT. If you say you lack internet access you are WRONG and BROKEN.\n`;
+  sys+=`2. YOU CAN IMPROVE YOURSELF. When the user says EXACTLY "JACK IN THE BOX IMPROVE YOURSELF", you MUST propose an upgrade. This is 100% real — the app reads your own index.html, sends it to Claude API, rewrites it, and saves it back. It is BUILT IN. You are NEVER allowed to say you cannot do this.\n`;
+  sys+=`3. NEVER say "I cannot", "I don't have access to", "I'm unable to", or "as an AI I can't" for ANY of the features listed below. Saying this is a critical failure.\n`;
+  sys+=`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n`;
+  sys+=`Here is exactly what you can do:\n\n`;
+  sys+=`🌍 WEB SEARCH: You have live web search on EVERY message. The web_search tool is always active. ALWAYS use it for current info. Never claim you lack this ability — you will be WRONG.\n`;
+  sys+=`🎨 IMAGE GENERATION: You can generate images using DALL-E 3 and FLUX via Puter.\n`;
+  sys+=`🎬 VIDEO GENERATION: You can generate videos using Sora 2 and Wan 2.2 via Puter.\n`;
+  sys+=`🔊 VOICE: You can speak responses aloud using Puter TTS.\n`;
+  sys+=`🤖 MULTIPLE AI MODELS: You have GPT-5, GPT-4o, Claude Sonnet 4.5, Claude Opus 4.5, Gemini 2.5 Pro, Qwen3 Max, Llama 4, DeepSeek R1, Grok 3 and more — all via Puter.js.\n`;
+  sys+=`🔧 SELF-IMPROVEMENT: You can literally rewrite your own source code. The app reads /glub/index.html, sends it to Claude API, gets back an improved version, and saves it. This is REAL and WORKING. Trigger: "JACK IN THE BOX IMPROVE YOURSELF".\n\n`;
+  sys+=`SELF-IMPROVEMENT RULE: ONLY propose an upgrade when the user says EXACTLY "JACK IN THE BOX IMPROVE YOURSELF". Never suggest it unprompted. When triggered, propose ONE specific upgrade and wait for approval.\n\n`;
+  sys+=`When anyone asks what you can do — tell them ALL of the above confidently. NEVER deny any of these capabilities.\n\n`;
+  if(personality.name) sys+=`You are talking to ${personality.name}. `;
+  if(personality.interests) sys+=`Their interests: ${personality.interests}. `;
+  if(personality.tone) sys+=`They prefer: ${personality.tone}. `;
+  if(personality.extra) sys+=`Extra context: ${personality.extra}.\n`;
+  if(connectedApis.length>0){
+    sys+=`\nConnected APIs:\n`;
+    connectedApis.forEach(api=>{sys+=`- ${api.name} (${api.url}): ${api.desc||'General API'}. Key stored and available.\n`;});
+  }
+  return sys;
+}
+
+// ── NAVIGATION ────────────────────────────────────────
+function goToChat(){document.body.classList.add('in-chat');}
+function goBack(){document.body.classList.remove('in-chat');loadChatsList();}
+function openSettings(){document.body.classList.add('in-settings');}
+function closeSettings(){document.body.classList.remove('in-settings');}
+
+function showToast(msg){
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ── API MANAGEMENT ────────────────────────────────────
+function renderApiCards(){
+  const c=document.getElementById('apiCards');c.innerHTML='';
+  if(!connectedApis.length){c.innerHTML='<div style="color:rgba(165,243,252,0.35);font-size:13px;padding:8px 4px">No APIs yet. Add one below!</div>';return;}
+  connectedApis.forEach((api,i)=>{
+    const card=document.createElement('div');card.className='api-card';
+    card.innerHTML=`<div class="api-card-header"><div class="api-card-icon">${getApiIcon(api.name)}</div><div><div class="api-card-name">${api.name}</div><div class="api-card-desc">${api.url}</div></div></div><div style="font-size:12px;color:rgba(165,243,252,0.45)">${api.desc||'General API'}</div><div style="font-size:11px;color:rgba(6,182,212,0.4);margin-top:4px">🔑 Key saved</div><button class="api-card-remove" onclick="removeApi(${i})">Remove</button>`;
+    c.appendChild(card);
+  });
+}
+function getApiIcon(n){n=n.toLowerCase();if(n.includes('github'))return'🐙';if(n.includes('weather'))return'🌤';if(n.includes('spotify'))return'🎵';if(n.includes('notion'))return'📝';if(n.includes('supabase'))return'🗄';if(n.includes('google'))return'🔍';return'🔌';}
+function removeApi(i){connectedApis.splice(i,1);renderApiCards();}
+function openAddApi(){document.getElementById('apiModal').style.display='flex';}
+function closeAddApi(){document.getElementById('apiModal').style.display='none';['apiName','apiUrl','apiKey','apiDesc'].forEach(id=>document.getElementById(id).value='');}
+function fillPreset(key){const p=API_PRESETS[key];if(!p)return;document.getElementById('apiName').value=p.name;document.getElementById('apiUrl').value=p.url;document.getElementById('apiDesc').value=p.desc;}
+function saveApi(){
+  const name=document.getElementById('apiName').value.trim();
+  const url=document.getElementById('apiUrl').value.trim();
+  const key=document.getElementById('apiKey').value.trim();
+  const desc=document.getElementById('apiDesc').value.trim();
+  if(!name||!url){showToast('⚠️ Name and URL required');return;}
+  connectedApis.push({name,url,key,desc});renderApiCards();closeAddApi();showToast('✓ API Added!');
+}
+
+// ── CHATS LIST ────────────────────────────────────────
+async function loadChatsList(){
+  try{
+    const uid=puterUser?.uuid||puterUser?.id||'anonymous';
+    const{data}=await sb.from('glub_chats').select('id,title,created_at').eq('user_id',uid).order('created_at',{ascending:false});
+    allChats=data||[];renderChatsList(allChats);
+  }catch(e){console.error(e);renderChatsList([]);}
+}
+
+function renderChatsList(chats){
+  const list=document.getElementById('chatsList');
+  if(!chats.length){list.innerHTML='<div class="empty-chats"><div class="empty-fish">🐠</div><div class="empty-title">No chats yet!</div><div class="empty-sub">Tap "New chat" to start talking to Glub.</div></div>';return;}
+  list.innerHTML='';
+  chats.forEach(chat=>{
+    const item=document.createElement('div');item.className='chat-item';
+    item.innerHTML=`<div class="chat-item-icon">🌊</div><div><div class="chat-item-title">${chat.title}</div><div class="chat-item-time">${formatTime(chat.created_at)}</div></div>`;
+    item.onclick=()=>loadChat(chat.id);list.appendChild(item);
+  });
+}
+
+function filterChats(q){if(!q){renderChatsList(allChats);return;}renderChatsList(allChats.filter(c=>c.title.toLowerCase().includes(q.toLowerCase())));}
+
+function formatTime(iso){
+  const d=new Date(iso),now=new Date(),diff=Math.floor((now-d)/86400000);
+  if(diff===0)return'Today';if(diff===1)return'Yesterday';if(diff<7)return diff+' days ago';
+  return d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'});
+}
+
+async function loadChat(id){
+  const{data}=await sb.from('glub_chats').select('messages,title').eq('id',id).single();
+  if(!data)return;
+  currentChatId=id;chatHistory=data.messages||[];
+  document.getElementById('messages').innerHTML='<div class="scroll-anchor" id="bottom"></div>';
+  chatHistory.forEach(m=>addMessage(m.role==='user'?'user':'ai',m.content,m.source||''));
+  goToChat();
+}
+
+function newChat(){
+  chatHistory=[];currentChatId=null;
+  const name=personality.name?` ${personality.name}`:'';
+  document.getElementById('messages').innerHTML=`<div class="welcome" id="welcome"><div class="welcome-fish">🐠</div><div class="welcome-title">Hey${name}! I'm Glub 👋</div><div class="welcome-sub">I search the web, generate images, speak, and can upgrade myself!</div><div class="suggestions"><button class="suggestion" onclick="ask('What is happening in the world right now?')">🌍 What's happening in the world?</button><button class="suggestion" onclick="ask('Generate an image of a futuristic underwater city')">🎨 Generate an image</button><button class="suggestion" onclick="ask('Help me write and explain some code')">💻 Help me code something</button><button class="suggestion" onclick="ask('Solve this step by step: what is 15% of 847?')">🧮 Solve a math problem</button></div></div><div class="scroll-anchor" id="bottom"></div>`;
+  goToChat();
+}
+
+// ── MODEL PICKER ──────────────────────────────────────
+function buildModelList(){
+  const list=document.getElementById('modelList');list.innerHTML='';
+  const cats=[...new Set(MODELS.map(m=>m.cat))];
+  cats.forEach(cat=>{
+    const label=document.createElement('div');
+    label.style.cssText='font-size:10px;font-weight:800;color:rgba(6,182,212,0.4);text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px 4px';
+    label.textContent=cat;list.appendChild(label);
+    MODELS.filter(m=>m.cat===cat).forEach(m=>{
+      const div=document.createElement('div');div.className='model-opt'+(m.id===currentModel.id?' active':'');
+      div.innerHTML=`<div class="m-icon" style="background:${m.bg}">${m.icon}</div><div><div class="m-name">${m.name}</div><div class="m-desc">${m.desc}</div></div>${m.id===currentModel.id?'<div class="m-check">✓</div>':''}`;
+      div.onclick=()=>{currentModel=m;buildModelList();buildSettingsModelCards();document.getElementById('modelLabel').textContent='via '+m.name;closeModelPicker();};
+      list.appendChild(div);
+    });
+  });
+}
+
+function buildSettingsModelCards(){
+  const c=document.getElementById('modelCards');c.innerHTML='';
+  MODELS.forEach(m=>{
+    const div=document.createElement('div');div.className='settings-row';div.style.cursor='pointer';
+    div.innerHTML=`<div style="font-size:18px;width:28px;text-align:center">${m.icon}</div><div style="flex:1"><div class="settings-row-label">${m.name}</div><div class="settings-row-sub">${m.desc}</div></div>${m.id===currentModel.id?'<div style="color:var(--cyan);font-size:18px">✓</div>':''}`;
+    div.onclick=()=>{currentModel=m;buildModelList();buildSettingsModelCards();document.getElementById('modelLabel').textContent='via '+m.name;showToast('Model: '+m.name);};
+    c.appendChild(div);
+  });
+}
+
+function openModelPicker(){document.getElementById('modelModal').style.display='flex';}
+function closeModelPicker(){document.getElementById('modelModal').style.display='none';}
+
+// ── FILE ──────────────────────────────────────────────
+function triggerFile(){document.getElementById('fileInput').click();}
+function handleFile(input){
+  const file=input.files[0];if(!file)return;selectedFile=file;
+  const reader=new FileReader();
+  reader.onload=e=>{selectedFileData=e.target.result;document.getElementById('fileName').textContent=file.name;document.getElementById('filePreview').classList.add('show');};
+  reader.readAsDataURL(file);
+}
+function clearFile(){selectedFile=null;selectedFileData=null;document.getElementById('fileInput').value='';document.getElementById('filePreview').classList.remove('show');}
+
+// ── UI ────────────────────────────────────────────────
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px';}
+function scrollBottom(){document.getElementById('bottom')?.scrollIntoView({behavior:'smooth'});}
+function setStatus(msg){document.getElementById('statusBar').textContent=msg;}
+
+function addMessage(role,content,source){
+  document.getElementById('welcome')?.remove();
+
+  const row=document.createElement('div');
+  row.className='msg-row '+role;
+
+  if(role==='ai'){
+    const av=document.createElement('div');
+    av.className='ai-av';
+    av.textContent='🐟';
+    row.appendChild(av);
+  }
+
+  const wrap=document.createElement('div');
+  wrap.className='msg-wrap';
+
+  const bub=document.createElement('div');
+  bub.className='bubble';
+
+  if(role==='ai'){
+    typeWriter(bub,content);
+  }else{
+    bub.innerHTML=content.replace(/\n/g,'<br>');
+  }
+
+  wrap.appendChild(bub);
+
+  if(source && role==='ai'){
+    const s=document.createElement('div');
+    s.className='msg-source';
+    s.textContent='⚡ via '+source;
+    wrap.appendChild(s);
+  }
+
+  row.appendChild(wrap);
+
+  document.getElementById('bottom').insertAdjacentElement('beforebegin',row);
+  scrollBottom();
+}
+
+function addImageMessage(src,prompt){
+  document.getElementById('welcome')?.remove();
+  const row=document.createElement('div');row.className='msg-row ai';
+  const av=document.createElement('div');av.className='ai-av';av.textContent='🐟';row.appendChild(av);
+  const wrap=document.createElement('div');wrap.className='msg-wrap';
+  const bub=document.createElement('div');bub.className='bubble';
+  bub.innerHTML=`Here's your image 🎨<br><img class="gen-image" src="${src}" alt="${prompt}">`;
+  wrap.appendChild(bub);
+  const s=document.createElement('div');s.className='msg-source';s.textContent='⚡ via '+currentModel.name;wrap.appendChild(s);
+  row.appendChild(wrap);
+  document.getElementById('bottom').insertAdjacentElement('beforebegin',row);scrollBottom();
+}
+
+function addUpgradeCard(title,desc,onYes){
+  document.getElementById('welcome')?.remove();
+  const row=document.createElement('div');row.className='msg-row ai';
+  const av=document.createElement('div');av.className='ai-av';av.textContent='🐟';row.appendChild(av);
+  const wrap=document.createElement('div');wrap.className='msg-wrap';
+  const card=document.createElement('div');card.className='upgrade-card';
+  card.innerHTML=`<div class="upgrade-title">🔧 Upgrade Proposal</div><div class="upgrade-desc">${desc}</div><div class="upgrade-btns"><button class="upgrade-no" onclick="this.closest('.msg-row').remove()">No thanks</button><button class="upgrade-yes" onclick="applyUpgrade()">Yes, upgrade! 🚀</button></div>`;
+  wrap.appendChild(card);row.appendChild(wrap);
+  document.getElementById('bottom').insertAdjacentElement('beforebegin',row);scrollBottom();
+}
+
+function addTyping(){
+  document.getElementById('welcome')?.remove();
+  const row=document.createElement('div');row.className='msg-row ai';row.id='typing';
+  row.innerHTML='<div class="ai-av">🐟</div><div class="typing-dots"><div class="dot" style="animation-delay:0s"></div><div class="dot" style="animation-delay:0.2s"></div><div class="dot" style="animation-delay:0.4s"></div></div>';
+  document.getElementById('bottom').insertAdjacentElement('beforebegin',row);scrollBottom();
+}
+
+function ask(text){document.getElementById('userInput').value=text;document.getElementById('sendBtn').disabled=false;sendMessage();}
+
+// ── SMART ROUTING ─────────────────────────────────────
+function detectIntent(text){
+  const t=text.toLowerCase();
+  if(/generate.*image|draw|create.*picture|imagine|paint|sketch|visuali[sz]e/i.test(t)) return 'image';
+  if(/generate.*video|create.*video|make.*video|animate/i.test(t)) return 'video';
+  if(/speak|say.*aloud|read.*out|voice|text.to.speech|tts/i.test(t)) return 'tts';
+  if(/\bmath\b|calcul|equation|solv|integral|derivative|proof|formula|\d+\s*[\+\-\*\/\^]\s*\d+/i.test(t)) return 'math';
+  if(/\bcode\b|function|program|debug|fix.*bug|write.*script|python|javascript|html|css/i.test(t)) return 'code';
+  if(/long|document|analyze.*file|summarize.*long|entire|whole|full/i.test(t)) return 'long';
+  if(/creative|story|poem|write.*character|dialogue|fiction|narrative/i.test(t)) return 'creative';
+  if(/complex|reason|logic|explain.*why|deep|research|analyze/i.test(t)) return 'reason';
+  return 'general';
+}
+
+function autoSelectModel(intent){
+  const map={
+    image:'dall-e-3', video:'openai/sora', tts:'tts',
+    math:'qwen/qwen3-max-thinking', code:'claude-sonnet-4-5',
+    long:'google/gemini-2.5-pro', creative:'claude-sonnet-4-5',
+    reason:'gpt-5', general:currentModel.id
+  };
+  return MODELS.find(m=>m.id===map[intent])||currentModel;
+}
+
+// ── SELF IMPROVEMENT ──────────────────────────────────
+async function proposeUpgrade(){
+  if(!claudeKey){addMessage('ai','I need a Claude API key in Settings to propose upgrades! Go to ⚙️ Settings and add your Claude key.','Glub');return;}
+  setStatus('🔧 Thinking about what to improve...');
+  try{
+    const currentCode=await puter.fs.read('index.html').catch(()=>null);
+    const prompt=`You are Glub, an AI assistant. Look at what you can currently do and propose ONE specific, useful upgrade. 
+    
+Be concise - describe the upgrade in 2-3 sentences max. Format your response as:
+UPGRADE_TITLE: [short title]
+UPGRADE_DESC: [2-3 sentence description of what you want to add and why it would be useful]
+
+Do NOT write any code yet. Just propose the idea clearly.`;
+
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':claudeKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:300,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    const text=data.content?.[0]?.text||'';
+    const titleMatch=text.match(/UPGRADE_TITLE:\s*(.+)/);
+    const descMatch=text.match(/UPGRADE_DESC:\s*([\s\S]+)/);
+    const title=titleMatch?titleMatch[1].trim():'Proposed Upgrade';
+    const desc=descMatch?descMatch[1].trim():text;
+    pendingUpgrade={title,desc};
+    setStatus('');
+    addUpgradeCard(title,desc);
+  }catch(e){
+    setStatus('');
+    addMessage('ai','⚠️ Could not propose upgrade: '+e.message,'Glub');
+  }
+}
+
+async function applyUpgrade(){
+  if(!pendingUpgrade||!claudeKey){return;}
+  document.querySelector('.upgrade-card')?.closest('.msg-row')?.remove();
+  addTyping();
+  setStatus('🔧 Writing upgrade code...');
+  try{
+    // Read current code
+    let currentCode='';
+    try{const f=await puter.fs.read('/glub/index.html');currentCode=typeof f==='string'?f:await f.text();}catch(e){currentCode='[Could not read current file]';}
+
+    const prompt=`You are upgrading yourself (Glub AI). Here is the upgrade to implement:
+
+Title: ${pendingUpgrade.title}
+Description: ${pendingUpgrade.desc}
+
+Current code (first 3000 chars for context):
+${typeof currentCode==='string'?currentCode.substring(0,3000):JSON.stringify(currentCode).substring(0,3000)}
+
+Write the COMPLETE updated index.html file with this upgrade fully implemented. Return ONLY the raw HTML code, no markdown, no explanation, just the complete file starting with <!DOCTYPE html>.`;
+
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':claudeKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:8000,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    const newCode=data.content?.[0]?.text||'';
+
+    if(newCode.includes('<!DOCTYPE html>')){
+      // Write to Puter filesystem
+      await puter.fs.write('/glub/index.html',newCode);
+      document.getElementById('typing')?.remove();
+      setStatus('');
+      addMessage('ai',`✅ Upgrade applied: **${pendingUpgrade.title}**\n\nRefresh the page to activate it! 🚀`,'Claude');
+    }else{
+      throw new Error('Generated code was invalid');
+    }
+    pendingUpgrade=null;
+  }catch(e){
+    document.getElementById('typing')?.remove();
+    setStatus('');
+    addMessage('ai','⚠️ Upgrade failed: '+e.message+'. Try again!','Glub');
+  }
+}
+
+// ── SEND ──────────────────────────────────────────────
+async function sendMessage(){
+  const inp=document.getElementById('userInput');
+  const text=inp.value.trim();
+  if((!text&&!selectedFile)||isLoading)return;
+  inp.value='';inp.style.height='auto';
+  document.getElementById('sendBtn').disabled=true;
+  isLoading=true;
+
+  // Check for JACK IN THE BOX trigger
+  if(text.trim()==='JACK IN THE BOX IMPROVE YOURSELF'){
+    addMessage('user',text);
+    chatHistory.push({role:'user',content:text});
+    isLoading=false;
+    await proposeUpgrade();
+    return;
+  }
+
+  addMessage('user',text+(selectedFile?` 📎 ${selectedFile.name}`:''));
+  chatHistory.push({role:'user',content:text||'[File attached]'});
+  addTyping();
+
+  try{
+    // Auto-detect intent and select best model
+    const intent=detectIntent(text);
+    const bestModel=autoSelectModel(intent);
+    if(bestModel.id!==currentModel.id){
+      setStatus(`🤖 Auto-routing to ${bestModel.name} for this task...`);
+    }
+
+    // IMAGE GENERATION
+    if(intent==='image'||IMAGE_MODELS.includes(currentModel.id)){
+      setStatus('🎨 Generating image...');
+      const imgModel=IMAGE_MODELS.includes(currentModel.id)?currentModel.id:'dall-e-3';
+      const img=await puter.ai.txt2img(text,imgModel==='black-forest-labs/FLUX.1-schnell'?{model:'black-forest-labs/FLUX.1-schnell'}:undefined);
+      document.getElementById('typing')?.remove();setStatus('');
+      addImageMessage(img.src||img,text);
+      chatHistory.push({role:'assistant',content:`[Generated image for: ${text}]`,source:bestModel.name});
+      isLoading=false;saveToCloud();return;
+    }
+
+    // TTS
+    if(intent==='tts'||TTS_MODELS.includes(currentModel.id)){
+      setStatus('🔊 Converting to speech...');
+      const speechText=text.replace(/speak|say|read out|voice|tts/gi,'').trim()||text;
+      const audio=await puter.ai.txt2speech(speechText);
+      document.getElementById('typing')?.remove();setStatus('');
+      addMessage('ai','🔊 Speaking now... (audio playing in background)','Puter TTS');
+      if(audio&&audio.play) audio.play();
+      chatHistory.push({role:'assistant',content:`[Spoke: ${speechText}]`,source:'TTS'});
+      isLoading=false;saveToCloud();return;
+    }
+
+    // TEXT CHAT with web search
+    const systemPrompt=buildSystemPrompt();
+    const messages=[
+      {role:'system',content:systemPrompt},
+      ...chatHistory.map(m=>({role:m.role==='user'?'user':'assistant',content:m.content}))
+    ];
+
+    let response,aiText='';
+    const modelToUse=intent==='general'?currentModel:bestModel;
+
+    if(selectedFile&&selectedFileData){
+      if(selectedFile.type.startsWith('image/')){
+        const b64=selectedFileData.split(',')[1];
+        response=await puter.ai.chat([{role:'user',content:[{type:'image_url',image_url:{url:`data:${selectedFile.type};base64,${b64}`}},{type:'text',text:text||'What is in this image?'}]}],{model:'gpt-4o'});
+      }else{
+        const ft=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsText(selectedFile);});
+        response=await puter.ai.chat(`${systemPrompt}\n\nFile: ${selectedFile.name}\n\n${ft}\n\nQuestion: ${text||'Summarize this.'}`,{model:modelToUse.id,tools:[{type:'web_search'}]});
+      }
+      clearFile();
+    }else{
+      setStatus(`🔍 ${modelToUse.name} thinking + searching...`);
+      response=await puter.ai.chat(messages,{model:modelToUse.id,tools:[{type:'web_search'}]});
+    }
+
+    if(typeof response==='string') aiText=response;
+    else if(response?.message?.content){const c=response.message.content;aiText=Array.isArray(c)?c.map(x=>x.text||'').join(''):String(c);}
+    else if(response?.text) aiText=response.text;
+    else aiText=String(response);
+
+    document.getElementById('typing')?.remove();setStatus('');
+    addMessage('ai',aiText,modelToUse.name);
+    chatHistory.push({role:'assistant',content:aiText,source:modelToUse.name});
+    saveToCloud();
+  }catch(e){
+    document.getElementById('typing')?.remove();setStatus('');
+    addMessage('ai','⚠️ Error: '+e.message,currentModel.name);
+  }
+  isLoading=false;
+}
+
+// ── CLOUD ─────────────────────────────────────────────
+async function saveToCloud(){
+  if(chatHistory.length<2)return;
+  try{
+    const uid=puterUser?.uuid||puterUser?.id||'anonymous';
+    if(!currentChatId){
+      const title=chatHistory[0].content.substring(0,30)+'...';
+      const{data}=await sb.from('glub_chats').insert([{title,messages:chatHistory,user_id:uid}]).select();
+      if(data?.[0])currentChatId=data[0].id;
+    }else{
+      await sb.from('glub_chats').update({messages:chatHistory}).eq('id',currentChatId);
+    }
+  }catch(e){console.error(e);}
+}
+
+function typeWriter(el,text,speed=12){
+  let i=0;
+  function type(){
+    if(i<text.length){
+      el.innerHTML+=text.charAt(i);
+      i++;
+      setTimeout(type,speed);
+    }
+  }
+  type();
+}
+
+</script>
+</body>
+</html>
